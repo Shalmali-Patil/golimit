@@ -1,6 +1,6 @@
 clustername:  IDEA
 tchannelport: 2347
-seed: "YOGESHs-MacBook-Pro.local:2345"
+seed: "RANDOM:SEED:2345"
 preprocessworkers:  1000
 preprocessbuffer: 100000
 buckets:  1000
@@ -14,5 +14,6 @@ statsdbucket: 19june18
 statsdhostport: 127.0.0.1:8125
 unixsocketenable: true
 unixsocket: /tmp/golimit2.sock
+apisecret: "alpha"
 
 

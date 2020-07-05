@@ -1,16 +1,20 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
-	"github.com/myntra/golimit/store"
-	"github.com/pressly/chi"
-	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"runtime/pprof"
 	"strconv"
 	"strings"
+
+	"github.com/myntra/golimit/store"
+	"github.com/pressly/chi"
+	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 )
 
 type HttpServer struct {
@@ -110,6 +114,86 @@ func (s *HttpServer) registerHttpHandlers() {
 		w.Write((serialize(struct{ Block bool }{Block: ret})))
 
 	})
+
+	s.router.Post("/shield/*", func(w http.ResponseWriter, r *http.Request) {
+		var countStr string
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Error reading body: %v", err)
+			http.Error(w, "can't read body", http.StatusBadRequest)
+			return
+		}
+		path := chi.URLParam(r, "*")
+		searchKey := "site.publisher.id"
+		pID := gjson.Get(string(body), searchKey)
+		keyPrefix := path + "^" + searchKey + "|"
+		log.Infof("Key parsed: %s", keyPrefix+pID.String())
+
+		keys := [1]string{keyPrefix + pID.String()}
+		if r.URL.Query().Get("C") != "" {
+			countStr = r.URL.Query().Get("C")
+		} else {
+			countStr = "1"
+		}
+
+		count, err := strconv.Atoi(countStr)
+		if err != nil {
+			http.Error(w, "Count should be numeric", 400)
+			return
+		}
+		retFinal := true
+		for _, key := range keys {
+			globalKey := keyPrefix + "*"
+			if s.store.GetRateConfig(key) == nil && s.store.GetRateConfig(globalKey) != nil {
+				log.Info("Key Not found: " + keyPrefix + key + ", using global config for key:" + globalKey)
+				newRateConfig := s.store.GetRateConfig(globalKey)
+				s.store.SetRateConfig(key,
+					store.RateConfig{
+						Limit:        int32(newRateConfig.Limit),
+						Window:       int32(newRateConfig.Window),
+						PeakAveraged: newRateConfig.PeakAveraged})
+			}
+			ret := s.store.RateLimitGlobal(keyPrefix+key, int32(count))
+			if ret == false {
+				retFinal = false
+			}
+		}
+
+		//Recreate request body
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+
+	})
+
+	s.router.Get("/shield/*", func(w http.ResponseWriter, r *http.Request) {
+		var countStr string
+		keys := strings.Split(r.URL.Query().Get("K"), ",")
+		if r.URL.Query().Get("C") != "" {
+			countStr = r.URL.Query().Get("C")
+		} else {
+			countStr = "1"
+		}
+
+		count, err := strconv.Atoi(countStr)
+		if err != nil {
+			http.Error(w, "Count should be numeric", 400)
+			return
+		}
+		retFinal := true
+		for _, key := range keys {
+			ret := s.store.RateLimitGlobal(key, int32(count))
+			if ret == false {
+				retFinal = false
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+
+	})
+
 	s.router.Get("/rateall", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write((serialize(s.store.GetRateConfigAll())))
@@ -139,10 +223,12 @@ func (s *HttpServer) registerHttpHandlers() {
 			return
 		}
 		rate := struct {
-			Key          string
-			Window       int
-			Limit        int
-			PeakAveraged bool
+			Key             string
+			Window          int
+			Limit           int
+			PeakAveraged    bool
+			DefaultResponse string
+			DefaultHeaders  string
 		}{}
 		decoder.Decode(&rate)
 		log.Info("RateConfig Update request %+v", rate)
@@ -152,7 +238,7 @@ func (s *HttpServer) registerHttpHandlers() {
 		}
 
 		s.store.SetRateConfig(rate.Key, store.RateConfig{Limit: int32(rate.Limit), Window: int32(rate.Window),
-			PeakAveraged: rate.PeakAveraged})
+			PeakAveraged: rate.PeakAveraged, DefaultResponse: rate.DefaultResponse, DefaultHeaders: rate.DefaultHeaders})
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(serialize(struct{ Success bool }{Success: true}))

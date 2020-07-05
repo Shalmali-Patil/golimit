@@ -1,6 +1,6 @@
 module github.com/myntra/golimit
 
-go 1.13
+go 1.14
 
 require (
 	github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
@@ -19,6 +19,7 @@ require (
 	github.com/spaolacci/murmur3 v0.0.0-20170819071325-9f5d223c6079
 	github.com/streadway/quantile v0.0.0-20150917103942-b0c588724d25 // indirect
 	github.com/stretchr/testify v1.5.1
+	github.com/tidwall/gjson v1.6.0
 	github.com/uber-common/bark v1.2.2-0.20180502054345-ccbdb38cd12f // indirect
 	github.com/uber-go/atomic v1.3.2 // indirect
 	github.com/uber/jaeger-client-go v2.22.1+incompatible // indirect

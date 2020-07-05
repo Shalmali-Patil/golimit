@@ -3,6 +3,12 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
+	"math"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/myntra/golimit/gen-go/com"
 	"github.com/myntra/golimit/store/bucket"
 	"github.com/myntra/golimit/store/clock"
@@ -12,11 +18,6 @@ import (
 	"github.com/uber/ringpop-go"
 	"github.com/uber/tchannel-go"
 	"gopkg.in/alexcesaro/statsd.v2"
-	"io/ioutil"
-	"math"
-	"os"
-	"sync"
-	"time"
 )
 
 var HOSTNAME string
@@ -218,9 +219,12 @@ func WithConfigDir(configDir string) Option {
 }
 
 type RateConfig struct {
-	Window       int32 //in seconds
-	Limit        int32
-	PeakAveraged bool
+	Window          int32 //in seconds
+	Limit           int32
+	PeakAveraged    bool
+	Keys            string
+	DefaultResponse string
+	DefaultHeaders  string
 }
 
 type Store struct {
