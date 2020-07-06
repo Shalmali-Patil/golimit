@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"runtime/pprof"
 	"strconv"
@@ -127,7 +129,7 @@ func (s *HttpServer) registerHttpHandlers() {
 		searchKey := "site.publisher.id"
 		pID := gjson.Get(string(body), searchKey)
 		keyPrefix := path + "^" + searchKey + "|"
-		log.Infof("Key parsed: %s", keyPrefix+pID.String())
+		//log.Infof("Key parsed: %s", keyPrefix+pID.String())
 
 		keys := [1]string{keyPrefix + pID.String()}
 		if r.URL.Query().Get("C") != "" {
@@ -141,7 +143,7 @@ func (s *HttpServer) registerHttpHandlers() {
 			http.Error(w, "Count should be numeric", 400)
 			return
 		}
-		retFinal := true
+		retFinal := false
 		for _, key := range keys {
 			globalKey := keyPrefix + "*"
 			if s.store.GetRateConfig(key) == nil && s.store.GetRateConfig(globalKey) != nil {
@@ -154,16 +156,22 @@ func (s *HttpServer) registerHttpHandlers() {
 						PeakAveraged: newRateConfig.PeakAveraged})
 			}
 			ret := s.store.RateLimitGlobal(keyPrefix+key, int32(count))
-			if ret == false {
-				retFinal = false
+			if ret == true {
+				retFinal = true
 			}
 		}
 
 		//Recreate request body
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		if retFinal == false {
+			r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+			url, _ := url.Parse("http://172.16.4.47:8192/" + path)
+			proxy := httputil.NewSingleHostReverseProxy(url)
+			proxy.ServeHTTP(w, r)
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+		}
 
 	})
 

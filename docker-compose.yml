@@ -1,0 +1,26 @@
+version: "3"
+services:
+  shield:
+    image: abhinavsinha001/shield:v1-test
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 200M
+    ports:
+      - "8080:8080"
+  demo-app:
+    image: abhinavsinha001/demo-app:v1-test
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 200M
+    ports:
+      - "8090:8090"

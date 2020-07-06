@@ -6,7 +6,6 @@ preprocessbuffer: 100000
 unsyncedctrlimit: 5
 buckets:  1000
 httpenabled: true
-hostname: "L823.Home"
 httpport: 8080
 statsdsamplerate: .01
 unsyncedtimelimit: 60000
