@@ -226,6 +226,7 @@ type RateConfig struct {
 	DefaultResponse string
 	DefaultHeaders  string
 	Source          string
+	AllKeys         string
 }
 
 type Store struct {

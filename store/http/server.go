@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/myntra/golimit/config"
 	"github.com/myntra/golimit/store"
 	"github.com/patrickmn/go-cache"
 	"github.com/pressly/chi"
@@ -29,19 +30,19 @@ type HttpServer struct {
 	store         *store.Store
 }
 
-func NewGoHttpServer(port int, hostname string, store *store.Store) *HttpServer {
+func NewGoHttpServer(port int, hostname string, store *store.Store, config config.StoreConfig) *HttpServer {
 	server := &HttpServer{port: port, hostname: hostname, store: store}
 	server.router = chi.NewRouter()
-	server.registerHttpHandlers()
+	server.registerHttpHandlers(config)
 	go http.ListenAndServe(":"+strconv.Itoa(port), server.router)
 	log.Infof("http server started on port %d", port)
 	return server
 }
 
-func NewGoHttpServerOnUnixSocket(sockFile string, store *store.Store) *HttpServer {
+func NewGoHttpServerOnUnixSocket(sockFile string, store *store.Store, config config.StoreConfig) *HttpServer {
 	server := &HttpServer{unixSocksFile: sockFile, store: store}
 	server.router = chi.NewRouter()
-	server.registerHttpHandlers()
+	server.registerHttpHandlers(config)
 	listener, err := net.Listen("unix", sockFile)
 	if err != nil {
 		log.Error(err)
@@ -52,7 +53,7 @@ func NewGoHttpServerOnUnixSocket(sockFile string, store *store.Store) *HttpServe
 	return server
 }
 
-func (s *HttpServer) registerHttpHandlers() {
+func (s *HttpServer) registerHttpHandlers(config config.StoreConfig) {
 
 	s.router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("pong"))
@@ -123,22 +124,10 @@ func (s *HttpServer) registerHttpHandlers() {
 		var countStr string
 
 		path := chi.URLParam(r, "*")
-		url, _ := url.Parse("http://demo-app:8090/" + path)
-		if s.store.GetRateConfig(path) != nil {
-			searchKey := "site.publisher.id"
-			body, err := ioutil.ReadAll(r.Body)
-			if err != nil {
-				log.Printf("Error reading body: %v", err)
-				http.Error(w, "can't read body", http.StatusBadRequest)
-				return
-			}
-			pID := gjson.Get(string(body), searchKey).String()
-
-			keyPrefix := strings.Join([]string{path, "^", searchKey, "|"}, "")
-
-			log.Debug("Key parsed: %s", keyPrefix+pID)
-
-			keys := [1]string{strings.Join([]string{keyPrefix, pID}, "")}
+		baseProxyPath := *config.ProxyPath
+		url, _ := url.Parse(baseProxyPath + path)
+		rateConfigPath := s.store.GetRateConfig(path)
+		if rateConfigPath != nil {
 			if r.URL.Query().Get("C") != "" {
 				countStr = r.URL.Query().Get("C")
 			} else {
@@ -150,8 +139,24 @@ func (s *HttpServer) registerHttpHandlers() {
 				http.Error(w, "Count should be numeric", 400)
 				return
 			}
+			body, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("Error reading body: %v", err)
+				http.Error(w, "can't read body", http.StatusBadRequest)
+				return
+			}
+			allKeys := strings.Split(rateConfigPath.AllKeys, ",")
 			retFinal := false
-			for _, key := range keys {
+			for _, searchKey := range allKeys {
+				//searchKey := "site.publisher.id"
+				searchValue := gjson.Get(string(body), searchKey).String()
+				if len(strings.TrimSpace(searchValue)) == 0 {
+					log.Debug("No value found for key: %s", searchKey)
+					continue
+				}
+				keyPrefix := strings.Join([]string{path, "^", searchKey, "|"}, "")
+				log.Debug("Key parsed: %s", keyPrefix+searchValue)
+				key := strings.Join([]string{keyPrefix, searchValue}, "")
 				globalKey := keyPrefix + "*"
 				log.Debug("Global Key parsed: %s", globalKey)
 				if s.store.GetRateConfig(key) == nil && s.store.GetRateConfig(globalKey) != nil {
@@ -168,9 +173,10 @@ func (s *HttpServer) registerHttpHandlers() {
 				if ret == true {
 					log.Debug("Rate Limit Hit for key: %s", key)
 					retFinal = true
+					break
 				}
-			}
 
+			}
 			//Recreate request body
 			if retFinal == false {
 				r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
@@ -190,28 +196,69 @@ func (s *HttpServer) registerHttpHandlers() {
 
 	s.router.Get("/shield/*", func(w http.ResponseWriter, r *http.Request) {
 		var countStr string
-		keys := strings.Split(r.URL.Query().Get("K"), ",")
-		if r.URL.Query().Get("C") != "" {
-			countStr = r.URL.Query().Get("C")
-		} else {
-			countStr = "1"
-		}
 
-		count, err := strconv.Atoi(countStr)
-		if err != nil {
-			http.Error(w, "Count should be numeric", 400)
-			return
-		}
-		retFinal := true
-		for _, key := range keys {
-			ret := s.store.RateLimitGlobal(key, int32(count))
-			if ret == false {
-				retFinal = false
+		path := chi.URLParam(r, "*")
+		baseProxyPath := *config.ProxyPath
+		url, _ := url.Parse(baseProxyPath + path)
+		rateConfigPath := s.store.GetRateConfig(path) //
+		if rateConfigPath != nil {
+			if r.URL.Query().Get("C") != "" {
+				countStr = r.URL.Query().Get("C")
+			} else {
+				countStr = "1"
 			}
-		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+			count, err := strconv.Atoi(countStr)
+			if err != nil {
+				http.Error(w, "Count should be numeric", 400)
+				return
+			}
+
+			allKeys := strings.Split(rateConfigPath.AllKeys, ",")
+			retFinal := false
+			for _, searchKey := range allKeys {
+
+				searchValue := r.URL.Query().Get(searchKey)
+				if len(strings.TrimSpace(searchValue)) == 0 {
+					log.Debug("No value found for key: %s", searchKey)
+					continue
+				}
+				keyPrefix := strings.Join([]string{path, "^", searchKey, "|"}, "")
+				log.Debug("Key parsed: %s", keyPrefix+searchValue)
+				key := strings.Join([]string{keyPrefix, searchValue}, "")
+				globalKey := keyPrefix + "*"
+				log.Debug("Global Key parsed: %s", globalKey)
+				if s.store.GetRateConfig(key) == nil && s.store.GetRateConfig(globalKey) != nil {
+					log.Info("Key Not found: " + key + ", using global config for key:" + globalKey)
+					newRateConfig := s.store.GetRateConfig(globalKey)
+					s.store.SetRateConfig(key,
+						store.RateConfig{
+							Limit:        int32(newRateConfig.Limit),
+							Window:       int32(newRateConfig.Window),
+							PeakAveraged: newRateConfig.PeakAveraged,
+							Source:       "wildcard-" + globalKey})
+				}
+				ret := s.store.RateLimitGlobal(key, int32(count))
+				if ret == true {
+					log.Debug("Rate Limit Hit for key: %s", key)
+					retFinal = true
+					break
+				}
+
+			}
+			//Recreate request
+			if retFinal == false {
+				proxy := getCustomHostReverseProxy(url, 5) //httputil.NewSingleHostReverseProxy(url)
+				proxy.ServeHTTP(w, r)
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+			}
+		} else {
+			log.Debug("No Rate config found for path: %s", path)
+			proxy := getCustomHostReverseProxy(url, 5)
+			proxy.ServeHTTP(w, r)
+		}
 
 	})
 
@@ -251,6 +298,7 @@ func (s *HttpServer) registerHttpHandlers() {
 			DefaultResponse string
 			DefaultHeaders  string
 			Source          string
+			AllKeys         string
 		}{}
 		decoder.Decode(&rate)
 		log.Info("RateConfig Update request %+v", rate)
@@ -265,7 +313,7 @@ func (s *HttpServer) registerHttpHandlers() {
 		}
 
 		s.store.SetRateConfig(rate.Key, store.RateConfig{Limit: int32(rate.Limit), Window: int32(rate.Window),
-			PeakAveraged: rate.PeakAveraged, DefaultResponse: rate.DefaultResponse, DefaultHeaders: rate.DefaultHeaders})
+			PeakAveraged: rate.PeakAveraged, DefaultResponse: rate.DefaultResponse, DefaultHeaders: rate.DefaultHeaders, AllKeys: rate.AllKeys})
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(serialize(struct{ Success bool }{Success: true}))
@@ -328,7 +376,7 @@ func serialize(obj interface{}) []byte {
 
 }
 
-var Cache = cache.New(5*time.Minute, 5*time.Minute)
+var Cache = cache.New(1*time.Minute, 1*time.Minute)
 
 func GetCache(key string) (*httputil.ReverseProxy, bool) {
 	var rp *httputil.ReverseProxy
@@ -342,6 +390,21 @@ func GetCache(key string) (*httputil.ReverseProxy, bool) {
 
 func SetCache(key string, rp *httputil.ReverseProxy) bool {
 	Cache.Set(key, rp, cache.NoExpiration)
+	return true
+}
+
+func GetConfigFromCache(key string) (*store.RateConfig, bool) {
+	var rc *store.RateConfig
+	var found bool
+	data, found := Cache.Get(key)
+	if found {
+		rc = data.(*store.RateConfig)
+	}
+	return rc, found
+}
+
+func SetConfigInCache(key string, rc *store.RateConfig) bool {
+	Cache.Set(key, rc, cache.NoExpiration)
 	return true
 }
 
@@ -370,6 +433,8 @@ func getCustomHostReverseProxy(target *url.URL, timeout int64) *httputil.Reverse
 				DualStack: true,
 			}).DialContext,
 			TLSHandshakeTimeout: 10 * time.Second,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
 		},
 	}
 
