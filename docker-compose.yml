@@ -1,17 +1,17 @@
 version: "3"
 services:
   shield:
-    image: abhinavsinha001/shield:v1
+    image: abhinavsinha001/shield:v2
     deploy:
       resources:
         limits:
-          cpus: '2.0'
+          cpus: '1.0'
           memory: 500M
         reservations:
           cpus: '0.25'
           memory: 200M
     environment:
-    - GOMAXPROCS=2
+    - GOMAXPROCS=1
     - LOGLEVEL=info
     ports:
       - "8080:8080"
@@ -20,13 +20,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
+          cpus: '4.0'
           memory: 500M
         reservations:
           cpus: '0.25'
           memory: 200M
     environment:
-    - GOMAXPROCS=2
+    - GOMAXPROCS=4
     ports:
       - "8192:8192"
   stats:
