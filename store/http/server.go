@@ -12,6 +12,7 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/myntra/golimit/config"
@@ -34,6 +35,7 @@ func NewGoHttpServer(port int, hostname string, store *store.Store, config confi
 	server := &HttpServer{port: port, hostname: hostname, store: store}
 	server.router = chi.NewRouter()
 	server.registerHttpHandlers(config)
+	server.uiHandler()
 	go http.ListenAndServe(":"+strconv.Itoa(port), server.router)
 	log.Infof("http server started on port %d", port)
 	return server
@@ -376,7 +378,46 @@ func serialize(obj interface{}) []byte {
 
 }
 
-var Cache = cache.New(1*time.Minute, 1*time.Minute)
+func (s *HttpServer) uiHandler() {
+
+	basePath := "/ui/"
+	dir, _ := os.Getwd()
+
+	tmpl := template.Must(template.ParseFiles(dir + "/" + basePath + "index.html"))
+	// configure static file path
+	staticPath := basePath + "lib/"
+
+	fileServer(s.router, staticPath, http.Dir("./"+staticPath))
+	s.router.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			tmpl.Execute(w, nil)
+			return
+		}
+	})
+}
+
+// FileServer conveniently sets up a http.FileServer handler to serve
+// static files from a http.FileSystem.
+func fileServer(r chi.Router, path string, root http.FileSystem) {
+	if strings.ContainsAny(path, "{}*") {
+		panic("FileServer does not permit any URL parameters.")
+	}
+
+	if path != "/" && path[len(path)-1] != '/' {
+		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		path += "/"
+	}
+	path += "*"
+
+	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
+		rctx := chi.RouteContext(r.Context())
+		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
+		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
+		fs.ServeHTTP(w, r)
+	})
+}
+
+var Cache = cache.New(5*time.Minute, 5*time.Minute)
 
 func GetCache(key string) (*httputil.ReverseProxy, bool) {
 	var rp *httputil.ReverseProxy
