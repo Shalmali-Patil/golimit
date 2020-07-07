@@ -337,14 +337,23 @@ func (s *HttpServer) registerHttpHandlers(config config.StoreConfig) {
 			http.Error(w, "Invalid Rate Config", 400)
 			return
 		}
-
+		newConfig := store.RateConfig{Limit: int32(rate.Limit), Window: int32(rate.Window),
+			PeakAveraged: rate.PeakAveraged, DefaultResponse: rate.DefaultResponse, DefaultHeaders: rate.DefaultHeaders, AllKeys: rate.AllKeys}
 		if strings.Contains(strings.TrimSpace(rate.Key), "*") {
-			rate.Source = "wildcard"
-			//Get and Update/delete all child rates
+			allRateConfigs := s.store.GetRateConfigAll()
+			log.Debug("RateConfig Update request %s", rate.Key)
+			for k, v := range allRateConfigs {
+				source := "wildcard-" + rate.Key
+				log.Debug("RateConfig Source matching %s with %s", source, v.Source)
+				if v.Source == source {
+					newConfig.Source = source
+					s.store.SetRateConfig(k, newConfig)
+				}
+			}
+
 		}
 
-		s.store.SetRateConfig(rate.Key, store.RateConfig{Limit: int32(rate.Limit), Window: int32(rate.Window),
-			PeakAveraged: rate.PeakAveraged, DefaultResponse: rate.DefaultResponse, DefaultHeaders: rate.DefaultHeaders, AllKeys: rate.AllKeys})
+		s.store.SetRateConfig(rate.Key, newConfig)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(serialize(struct{ Success bool }{Success: true}))

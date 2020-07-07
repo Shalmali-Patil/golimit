@@ -1,7 +1,7 @@
 version: "3"
 services:
   shield:
-    image: abhinavsinha001/shield:v3
+    image: abhinavsinha001/shield:v3-1
     deploy:
       resources:
         limits:
@@ -15,6 +15,8 @@ services:
     - LOGLEVEL=info
     ports:
       - "8080:8080"
+    sysctls:
+      - net.ipv4.ip_local_port_range=15000 65000
   demo-app:
     image: abhinavsinha001/demo-app:v1
     deploy:
@@ -49,4 +51,4 @@ services:
         limits:
           cpus: '1.0'
           memory: 1000M
-
+          
