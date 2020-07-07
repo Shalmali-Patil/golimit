@@ -367,6 +367,8 @@ func fileServer(r chi.Router, path string, root http.FileSystem) {
 		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
 		fs.ServeHTTP(w, r)
 	})
+}
+
 var Cache = cache.New(5*time.Minute, 5*time.Minute)
 
 func GetCache(key string) (*httputil.ReverseProxy, bool) {
