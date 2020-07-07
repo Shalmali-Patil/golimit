@@ -12,8 +12,10 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/myntra/golimit/store"
+	"github.com/patrickmn/go-cache"
 	"github.com/pressly/chi"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
@@ -119,58 +121,69 @@ func (s *HttpServer) registerHttpHandlers() {
 
 	s.router.Post("/shield/*", func(w http.ResponseWriter, r *http.Request) {
 		var countStr string
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			log.Printf("Error reading body: %v", err)
-			http.Error(w, "can't read body", http.StatusBadRequest)
-			return
-		}
+
 		path := chi.URLParam(r, "*")
-		searchKey := "site.publisher.id"
-		pID := gjson.Get(string(body), searchKey)
-		keyPrefix := path + "^" + searchKey + "|"
-		//log.Infof("Key parsed: %s", keyPrefix+pID.String())
+		url, _ := url.Parse("http://demo-app:8090/" + path)
+		if s.store.GetRateConfig(path) != nil {
+			searchKey := "site.publisher.id"
+			body, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("Error reading body: %v", err)
+				http.Error(w, "can't read body", http.StatusBadRequest)
+				return
+			}
+			pID := gjson.Get(string(body), searchKey).String()
 
-		keys := [1]string{keyPrefix + pID.String()}
-		if r.URL.Query().Get("C") != "" {
-			countStr = r.URL.Query().Get("C")
+			keyPrefix := strings.Join([]string{path, "^", searchKey, "|"}, "")
+
+			log.Debug("Key parsed: %s", keyPrefix+pID)
+
+			keys := [1]string{strings.Join([]string{keyPrefix, pID}, "")}
+			if r.URL.Query().Get("C") != "" {
+				countStr = r.URL.Query().Get("C")
+			} else {
+				countStr = "1"
+			}
+
+			count, err := strconv.Atoi(countStr)
+			if err != nil {
+				http.Error(w, "Count should be numeric", 400)
+				return
+			}
+			retFinal := false
+			for _, key := range keys {
+				globalKey := keyPrefix + "*"
+				log.Debug("Global Key parsed: %s", globalKey)
+				if s.store.GetRateConfig(key) == nil && s.store.GetRateConfig(globalKey) != nil {
+					log.Info("Key Not found: " + key + ", using global config for key:" + globalKey)
+					newRateConfig := s.store.GetRateConfig(globalKey)
+					s.store.SetRateConfig(key,
+						store.RateConfig{
+							Limit:        int32(newRateConfig.Limit),
+							Window:       int32(newRateConfig.Window),
+							PeakAveraged: newRateConfig.PeakAveraged,
+							Source:       "wildcard-" + globalKey})
+				}
+				ret := s.store.RateLimitGlobal(key, int32(count))
+				if ret == true {
+					log.Debug("Rate Limit Hit for key: %s", key)
+					retFinal = true
+				}
+			}
+
+			//Recreate request body
+			if retFinal == false {
+				r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+				proxy := getCustomHostReverseProxy(url, 5) //httputil.NewSingleHostReverseProxy(url)
+				proxy.ServeHTTP(w, r)
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+			}
 		} else {
-			countStr = "1"
-		}
-
-		count, err := strconv.Atoi(countStr)
-		if err != nil {
-			http.Error(w, "Count should be numeric", 400)
-			return
-		}
-		retFinal := false
-		for _, key := range keys {
-			globalKey := keyPrefix + "*"
-			if s.store.GetRateConfig(key) == nil && s.store.GetRateConfig(globalKey) != nil {
-				log.Info("Key Not found: " + keyPrefix + key + ", using global config for key:" + globalKey)
-				newRateConfig := s.store.GetRateConfig(globalKey)
-				s.store.SetRateConfig(key,
-					store.RateConfig{
-						Limit:        int32(newRateConfig.Limit),
-						Window:       int32(newRateConfig.Window),
-						PeakAveraged: newRateConfig.PeakAveraged})
-			}
-			ret := s.store.RateLimitGlobal(keyPrefix+key, int32(count))
-			if ret == true {
-				retFinal = true
-			}
-		}
-
-		//Recreate request body
-		if retFinal == false {
-			r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-
-			url, _ := url.Parse("http://172.16.4.47:8192/" + path)
-			proxy := httputil.NewSingleHostReverseProxy(url)
+			log.Debug("No Rate config found for path: %s", path)
+			proxy := getCustomHostReverseProxy(url, 5)
 			proxy.ServeHTTP(w, r)
-		} else {
-			w.Header().Set("Content-Type", "application/json")
-			w.Write((serialize(struct{ Block bool }{Block: retFinal})))
 		}
 
 	})
@@ -237,12 +250,18 @@ func (s *HttpServer) registerHttpHandlers() {
 			PeakAveraged    bool
 			DefaultResponse string
 			DefaultHeaders  string
+			Source          string
 		}{}
 		decoder.Decode(&rate)
 		log.Info("RateConfig Update request %+v", rate)
 		if strings.TrimSpace(rate.Key) == "" || rate.Window < 1 || rate.Limit < 1 {
 			http.Error(w, "Invalid Rate Config", 400)
 			return
+		}
+
+		if strings.Contains(strings.TrimSpace(rate.Key), "*") {
+			rate.Source = "wildcard"
+			//Get and Update/delete all child rates
 		}
 
 		s.store.SetRateConfig(rate.Key, store.RateConfig{Limit: int32(rate.Limit), Window: int32(rate.Window),
@@ -307,4 +326,53 @@ func serialize(obj interface{}) []byte {
 		return str
 	}
 
+}
+
+var Cache = cache.New(5*time.Minute, 5*time.Minute)
+
+func GetCache(key string) (*httputil.ReverseProxy, bool) {
+	var rp *httputil.ReverseProxy
+	var found bool
+	data, found := Cache.Get(key)
+	if found {
+		rp = data.(*httputil.ReverseProxy)
+	}
+	return rp, found
+}
+
+func SetCache(key string, rp *httputil.ReverseProxy) bool {
+	Cache.Set(key, rp, cache.NoExpiration)
+	return true
+}
+
+func getCustomHostReverseProxy(target *url.URL, timeout int64) *httputil.ReverseProxy {
+
+	var rp, found = GetCache(target.Path)
+	if found {
+		return rp
+	}
+	director := func(req *http.Request) {
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+
+		if _, ok := req.Header["User-Agent"]; !ok {
+			req.Header.Set("User-Agent", "")
+		}
+	}
+
+	var newRp = &httputil.ReverseProxy{
+		Director: director,
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   2000 * time.Millisecond,
+				KeepAlive: 300 * time.Second,
+				//Deadline:  time.Now().Add(time.Duration(timeout) * time.Millisecond),
+				DualStack: true,
+			}).DialContext,
+			TLSHandshakeTimeout: 10 * time.Second,
+		},
+	}
+
+	SetCache(target.Path, newRp)
+	return newRp
 }

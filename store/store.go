@@ -56,7 +56,7 @@ var defaultOptions = options{
 	clusterName:       "golimit",
 	nodeId:            "",
 	tchannelport:      "2479",
-	hostAddr:          "0.0.0.0",
+	hostAddr:          "127.0.0.1",
 	seed:              HOSTNAME + ":2479",
 	syncBuffer:        1000000,
 	buckets:           1000,
@@ -225,6 +225,7 @@ type RateConfig struct {
 	Keys            string
 	DefaultResponse string
 	DefaultHeaders  string
+	Source          string
 }
 
 type Store struct {
@@ -271,6 +272,7 @@ func NewStore(opt ...Option) *Store {
 	if store.opts.statsDEnabled {
 		event.GetMgrInstance().RegisterHandler(event.KEYEVENT, store)
 		statsd, err := statsd.New(statsd.Address(store.opts.statsDHostPort), statsd.SampleRate(store.opts.statsDSampleRate))
+		//statsd, err := statsd.New("localhost",))
 		if err == nil {
 			store.statsd = statsd
 		} else {
