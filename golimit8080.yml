@@ -6,13 +6,12 @@ preprocessbuffer: 100000
 unsyncedctrlimit: 5
 buckets:  1000
 httpenabled: true
-hostname: "L823.Home"
 httpport: 8080
 statsdsamplerate: .01
 unsyncedtimelimit: 60000
 statsdenabled: true
 statsdbucket: 19june18
-statsdhostport: 127.0.0.1:8125
+statsdhostport: stats:8125
 unixsocketenable: false
 unixsocket: /tmp/golimit.sock
 syncbuffer: 1000000

@@ -1,12 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/myntra/golimit/store"
-	"github.com/myntra/golimit/store/http"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -14,6 +11,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/myntra/golimit/store"
+	"github.com/myntra/golimit/store/http"
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 )
 
 type StoreConfig struct {
@@ -84,7 +86,8 @@ func main() {
 		}
 		configObj.HostName = &hostname
 	}
-	log.Infof("StoreConfig: %+v", configObj)
+	configString, _ := json.Marshal(configObj)
+	log.Infof("StoreConfig: %s", string(configString))
 
 	var opt []store.Option
 
@@ -162,6 +165,9 @@ func main() {
 
 	if configObj.NodeId != nil {
 		opt = append(opt, store.WithNodeId(*configObj.NodeId))
+	}
+	if configObj.HostName != nil {
+		opt = append(opt, store.WithHostAddr(*configObj.HostName))
 	}
 
 	store := store.NewStore(opt...)

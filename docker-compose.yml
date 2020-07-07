@@ -1,0 +1,51 @@
+version: "3"
+services:
+  shield:
+    image: abhinavsinha001/shield:v1
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 200M
+    environment:
+    - GOMAXPROCS=1
+    ports:
+      - "8080:8080"
+  demo-app:
+    image: abhinavsinha001/demo-app:v1-test
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 200M
+    environment:
+    - GOMAXPROCS=2
+    ports:
+      - "8192:8090"
+  stats:
+    image: hopsoft/graphite-statsd
+    ports:
+      - "82:80"
+      - "81:81"
+      - "2003-2004:2003-2004"
+      - "2023-2024:2023-2024"
+      - "8125:8125/udp"
+      - "8126:8126"
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - /tmp/prometheus.yml:/etc/prometheus/prometheus.yml
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1000M
+

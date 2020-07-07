@@ -6,12 +6,15 @@ require (
 	github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
-	github.com/cactus/go-statsd-client v3.1.1+incompatible // indirect
+	github.com/cactus/go-statsd-client v3.2.1+incompatible // indirect
+	github.com/cactus/go-statsd-client/statsd v0.0.0-20200623234511-94959e3146b2
+	//github.com/cactus/go-statsd-client v3.1.1+incompatible // indirect
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/dgryski/go-farm v0.0.0-20180109070241-2de33835d102 // indirect
 	github.com/onsi/ginkgo v1.12.0 // indirect
 	github.com/onsi/gomega v1.9.0 // indirect
 	github.com/opentracing/opentracing-go v1.1.0 // indirect
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prashantv/protectmem v0.0.0-20171002184600-e20412882b3a // indirect
 	github.com/pressly/chi v3.3.2+incompatible
 	github.com/rcrowley/go-metrics v0.0.0-20180503174638-e2704e165165 // indirect
@@ -29,6 +32,7 @@ require (
 	go.uber.org/atomic v1.6.0 // indirect
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
 	gopkg.in/alexcesaro/statsd.v2 v2.0.0
+	//gopkg.in/alexcesaro/statsd.v2 v2.0.0
 	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	gopkg.in/yaml.v2 v2.2.4
 )
