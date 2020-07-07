@@ -4,15 +4,52 @@
     <link type="text/css" rel="stylesheet" href="ui/lib/jsgrid.min.css" />
     <link type="text/css" rel="stylesheet" href="ui/lib/jsgrid-theme.min.css" />
     <script type="text/javascript" src="ui/lib/jquery.min.js"></script>
+    <script type="text/javascript" src="ui/lib/jquery-ui.min.js"></script>
     <script type="text/javascript" src="ui/lib/jsgrid.min.js"></script>
+
+
  
+    <style>
+        .shield {
+            background-image: url('ui/lib/background.jpg');
+             background-size: cover;
+             background-repeat: no-repeat;
+             background-position: center;
+        }
+
+        .shield::before {
+            content: "";
+            position: absolute;
+            top: 0px;
+            right: 0px;
+            bottom: 0px;
+            left: 0px;
+            background-color: rgba(0,0,0,0.25);
+        }
+
+        .topcorner{
+            position:absolute;
+            top:50px;
+            right: 50px;
+        }
+    </style>
     <script>
+    
     
 
         $("document").ready(function() {
+
+            //$("#logo").effect("bounce", "slow", {times: 50, distance: 500}, 500);
+
+            setInterval(function() {
+               // $('#flashes').effect('bounce',1000)
+                $("#logo").effect("bounce", "slow", {times: 50, distance: 500}, 500);
+
+            }, 1000);
+
             $("#jsGrid").jsGrid({
             width: "100%",
-            height: "400px",
+            height: "100%",
      
             inserting: false,
             editing: true,
@@ -22,7 +59,7 @@
             selecting: true,
             heading: true,
             deleteButton : false,
-            filtering: true,
+            filtering: false,
      
             loadIndicator: {
                 show: function() {
@@ -52,11 +89,13 @@
                             console.log(response[key]);
                             data.push(response[key]);
                         })
-                        d.resolve(data);
+                        d.resolve(data);    
                     });
     
                     return d.promise();
                 },
+
+                
 
                 updateItem: function(item) {
                     console.log("Updating " + item);
@@ -81,7 +120,9 @@
                 { name: "Limit", type: "number", width: 50 },
                 { name: "PeakAveraged", type: "text", width: 200 },
                 { name: "Keys", type: "text"  },
-                { name: "DefaultResponse", type: "text" },
+                { name: "DefaultResponse", type: "textarea" ,width: 200 , cellRenderer: function(value, item) {
+                    return "<td>" + String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + "</td>";
+                }},
                 { name: "DefaultHeaders", type: "text"},
                 { type: "control" }
             ]
@@ -91,8 +132,9 @@
        
     </script>
 </head>
-<body style="background-image: url('ui/lib/background.jpg'); background-size: cover;background-repeat: no-repeat;background-position: center;">
+<body class="shield">
     
+    <div id="logo" class="topcorner" ><img src="ui/lib/schield-logo.jpg" width="150px" height="100px"/></div>
     <div id="jsGrid" class="divcenter" style="opacity: 100%; top: 40%;position: fixed;"></div>
 
 </body>
