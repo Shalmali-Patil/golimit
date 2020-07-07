@@ -20,6 +20,8 @@
             autoload: true,
             selecting: true,
             heading: true,
+            deleteButton : false,
+            filtering: true,
      
             loadIndicator: {
                 show: function() {
@@ -41,6 +43,11 @@
                         data = []
                         Object.keys(response).forEach(function(key){  
                             response[key]["Key"] = key ;
+                            response[key]["Path"] = key.split("^")[0];
+                            if (key.split("^")[1]    != null) {
+                                response[key]["DisplayKey"] = key.split("^")[1].split("|")[0];
+                                response[key]["Value"] = key.split("^")[1].split("|")[1];
+                            }
                             console.log(response[key]);
                             data.push(response[key]);
                         })
@@ -65,7 +72,10 @@
            
 
             fields: [
-                {  name :"Key", type:"text", readOnly: true},
+               // { name :"Key", type:"text", readOnly: true},
+                { name :"Path", type:"text", readOnly: true},
+                { name :"DisplayKey", type:"text", readOnly: true},
+                { name :"Value", type:"text", readOnly: true},
                 { name: "Window", type: "number", width: 150, validate: "required" },
                 { name: "Limit", type: "number", width: 50 },
                 { name: "PeakAveraged", type: "text", width: 200 },
@@ -80,8 +90,8 @@
        
     </script>
 </head>
-<body>
-    <h1>Hello</h1>
+<body style="background-image: url('ui/lib/background.jpg');background-size: cover;background-repeat: no-repeat;background-position: center;">
+    <h1></h1>
     <div id="jsGrid"></div>
 
 </body>
