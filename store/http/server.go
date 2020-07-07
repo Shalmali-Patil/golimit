@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -185,8 +186,22 @@ func (s *HttpServer) registerHttpHandlers(config config.StoreConfig) {
 				proxy := getCustomHostReverseProxy(url, 5) //httputil.NewSingleHostReverseProxy(url)
 				proxy.ServeHTTP(w, r)
 			} else {
-				w.Header().Set("Content-Type", "application/json")
-				w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+				resHeaders := strings.Split(rateConfigPath.DefaultHeaders, ",")
+				for _, hkv := range resHeaders {
+					kvArray := strings.Split(hkv, ":")
+					if len(kvArray) == 2 {
+						w.Header().Set(kvArray[0], kvArray[1])
+					}
+					if len(kvArray) == 2 && kvArray[0] == "STATUS" {
+						status, err := strconv.Atoi(kvArray[1])
+						if err == nil {
+							w.WriteHeader(status)
+						}
+					}
+				}
+				io.WriteString(w, rateConfigPath.DefaultResponse)
+
+				//w.Write((serialize(struct{ Block bool }{Block: retFinal})))
 			}
 		} else {
 			log.Debug("No Rate config found for path: %s", path)
@@ -253,8 +268,22 @@ func (s *HttpServer) registerHttpHandlers(config config.StoreConfig) {
 				proxy := getCustomHostReverseProxy(url, 5) //httputil.NewSingleHostReverseProxy(url)
 				proxy.ServeHTTP(w, r)
 			} else {
-				w.Header().Set("Content-Type", "application/json")
-				w.Write((serialize(struct{ Block bool }{Block: retFinal})))
+				resHeaders := strings.Split(rateConfigPath.DefaultHeaders, ",")
+				for _, hkv := range resHeaders {
+					kvArray := strings.Split(hkv, ":")
+					if len(kvArray) == 2 && kvArray[0] != "STATUS" {
+						w.Header().Set(kvArray[0], kvArray[1])
+					}
+					if len(kvArray) == 2 && kvArray[0] == "STATUS" {
+						status, err := strconv.Atoi(kvArray[1])
+						if err == nil {
+							w.WriteHeader(status)
+						}
+					}
+
+				}
+				io.WriteString(w, rateConfigPath.DefaultResponse)
+
 			}
 		} else {
 			log.Debug("No Rate config found for path: %s", path)
@@ -474,8 +503,8 @@ func getCustomHostReverseProxy(target *url.URL, timeout int64) *httputil.Reverse
 				DualStack: true,
 			}).DialContext,
 			TLSHandshakeTimeout: 10 * time.Second,
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 100,
+			MaxIdleConns:        500,
+			MaxIdleConnsPerHost: 200,
 		},
 	}
 
