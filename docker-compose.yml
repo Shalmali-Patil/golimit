@@ -11,15 +11,16 @@ services:
           cpus: '0.25'
           memory: 200M
     environment:
-    - GOMAXPROCS=1
+    - GOMAXPROCS=2
+    - LOGLEVEL=info
     ports:
       - "8080:8080"
   demo-app:
-    image: abhinavsinha001/demo-app:v1-test
+    image: abhinavsinha001/demo-app:v1
     deploy:
       resources:
         limits:
-          cpus: '1.0'
+          cpus: '2.0'
           memory: 500M
         reservations:
           cpus: '0.25'
@@ -27,7 +28,7 @@ services:
     environment:
     - GOMAXPROCS=2
     ports:
-      - "8192:8090"
+      - "8192:8192"
   stats:
     image: hopsoft/graphite-statsd
     ports:

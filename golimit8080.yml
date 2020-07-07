@@ -16,5 +16,6 @@ unixsocketenable: false
 unixsocket: /tmp/golimit.sock
 syncbuffer: 1000000
 apisecret: "alpha"
+proxypath: "http://demo-app:8192/"
 
 
