@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fury-shield-deployment
+  namespace: fury-shield-demo
+  labels:
+    app: fury-shield
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fury-shield
+  template:
+    metadata:
+      labels:
+        app: fury-shield
+    spec:
+      containers:
+      - name: demo-app
+        image: abhinavsinha001/demo-app:v1
+        ports:
+        - containerPort: 8192
+        resources:
+            limits:
+              cpu: "2"
+            requests:
+              cpu: "0.5"
+      - name: shield
+        image: abhinavsinha001/shield:v4
+        ports:
+        - containerPort: 8080
+        resources:
+            limits:
+              cpu: "1"
+            requests:
+              cpu: "0.5"
+        volumeMounts:
+        - name: config-volume
+          mountPath: "/etc/shield-app-resources"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: shield-config
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: fury-shield
+    ver: 0.0.1
+    autoscale-mode: custom-metrics
+  name: fury-shield
+  namespace: fury-shield-demo
+spec:
+  type: NodePort
+  ports:
+  - name: app
+    protocol: TCP
+    port: 81
+    targetPort: 8192
+  - name: shield
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+  selector:
+    app: fury-shield
