@@ -16,8 +16,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/myntra/golimit/config"
-	"github.com/myntra/golimit/store"
+	"github.com/Shalmali-Patil/golimit/config"
+	"github.com/Shalmali-Patil/golimit/store"
 	"github.com/patrickmn/go-cache"
 	"github.com/pressly/chi"
 	log "github.com/sirupsen/logrus"
