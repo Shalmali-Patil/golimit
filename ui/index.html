@@ -83,7 +83,7 @@
                             response[key]["Key"] = key ;
                             response[key]["Path"] = key.split("^")[0];
                             if (key.split("^")[1]    != null) {
-                                response[key]["DisplayKey"] = key.split("^")[1].split("|")[0];
+                                response[key]["RateLimitKey"] = key.split("^")[1].split("|")[0];
                                 response[key]["Value"] = key.split("^")[1].split("|")[1];
                             }
                             console.log(response[key]);
@@ -98,7 +98,7 @@
                 insertItem: function(item) {
                     //alert("inserting")
                     // translator^site.publisher.id|*
-                    item.Key = item.Path + "^" + item.DisplayKey + "|" + item.Value
+                    item.Key = item.Path + "^" + item.RateLimitKey + "|" + item.Value
                     console.log("Inserting " + item);
                     return $.ajax({
                         type: "POST",
@@ -129,12 +129,15 @@
             fields: [
                // { name :"Key", type:"text", readOnly: true},
                 { name :"Path", type:"text", inserting: true, editing: false, validate: "required" },
-                { name :"DisplayKey", type:"text", inserting: true, editing: false, validate: "required"   },
+                { name :"RateLimitKey", type:"text", inserting: true, editing: false, validate: "required"   },
                 { name :"Value", type:"text", inserting: true , editing: false, validate: "required" },
                 { name: "Window", type: "number", width: 50, validate: "required" },
-                { name: "Limit", type: "number", width: 150 },
+                { name: "Limit", type: "number", width: 100 },
                 { name: "PeakAveraged", type: "text", width: 50 },
-                { name: "Keys", type: "text"  },
+                //{ name: "Keys", type: "text"  },
+                { name: "AllKeys", type: "textarea" ,width: 200 , cellRenderer: function(value, item) {
+                    return "<td>" + String(value).replace(/,/g, '\n')+ "</td>";
+                }},
                 { name: "DefaultResponse", type: "textarea" ,width: 200 , cellRenderer: function(value, item) {
                     return "<td>" + String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + "</td>";
                 }},
