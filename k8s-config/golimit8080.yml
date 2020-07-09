@@ -1,0 +1,21 @@
+clustername:  IDEA
+tchannelport: 2345
+seed: "RANDOM:SEED:2345"
+preprocessworkers:  1000
+preprocessbuffer: 100000
+unsyncedctrlimit: 5
+buckets:  1000
+httpenabled: true
+httpport: 8080
+statsdsamplerate: .01
+unsyncedtimelimit: 60000
+statsdenabled: true
+statsdbucket: hackdemo2020
+statsdhostport: stats:8125
+unixsocketenable: false
+unixsocket: /tmp/golimit.sock
+syncbuffer: 1000000
+apisecret: "alpha"
+proxypath: "http://localhost:8192/"
+
+
